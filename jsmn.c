@@ -1,3 +1,8 @@
+/**
+ * Original author: Serge Zaitsev <zaitsev.serge@gmail.com>
+ * Event based stream parsing rewrite: Sakari Kapanen <sakari.m.kapanen@gmail.com>
+ */
+
 #include "jsmn.h"
 
 #include <stdbool.h>
