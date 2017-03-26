@@ -3,13 +3,13 @@
  * Event based stream parsing rewrite: Sakari Kapanen <sakari.m.kapanen@gmail.com>
  */
 
-#include "jsmn.h"
+#include "jsmn_stream.h"
 
 #include <stdbool.h>
 
 #define JSMN_CALLBACK(f, ...) if ((f) != NULL) { (f)(__VA_ARGS__); }
 
-static bool jsmn_stack_push(jsmn_parser *parser, jsmntype_t type) {
+static bool jsmn_stream_stack_push(jsmn_stream_parser *parser, jsmn_streamtype_t type) {
 	if (parser->stack_height >= JSMN_MAX_DEPTH) {
 		return false;
 	}
@@ -17,14 +17,14 @@ static bool jsmn_stack_push(jsmn_parser *parser, jsmntype_t type) {
 	return true;
 }
 
-static jsmntype_t jsmn_stack_pop(jsmn_parser *parser) {
+static jsmn_streamtype_t jsmn_stream_stack_pop(jsmn_stream_parser *parser) {
 	if (parser->stack_height == 0) {
 		return JSMN_UNDEFINED;
 	}
 	return parser->type_stack[parser->stack_height--];
 }
 
-static jsmntype_t jsmn_stack_top(jsmn_parser *parser) {
+static jsmn_streamtype_t jsmn_stream_stack_top(jsmn_stream_parser *parser) {
 	if (parser->stack_height == 0) {
 		return JSMN_UNDEFINED;
 	}
@@ -34,7 +34,7 @@ static jsmntype_t jsmn_stack_top(jsmn_parser *parser) {
 /**
  * Fills next available token with JSON primitive.
  */
-static int jsmn_parse_primitive(jsmn_parser *parser, char cin) {
+static int jsmn_stream_parse_primitive(jsmn_stream_parser *parser, char cin) {
 	/* Leave space for the terminating null character */
 	if (parser->buffer_size == JSMN_BUFFER_SIZE - 1) {
 		return JSMN_ERROR_NOMEM;
@@ -66,7 +66,7 @@ found:
 /**
  * Fills next token with JSON string.
  */
-static int jsmn_parse_string(jsmn_parser *parser, char cin) {
+static int jsmn_stream_parse_string(jsmn_stream_parser *parser, char cin) {
 	/* Leave space for the terminating null character */
 	if (parser->buffer_size == JSMN_BUFFER_SIZE - 1) {
 		return JSMN_ERROR_NOMEM;
@@ -80,7 +80,7 @@ static int jsmn_parse_string(jsmn_parser *parser, char cin) {
 		/* Quote: end of string */
 		if (c == '\"') {
 			parser->buffer[len - 1] = '\0';
-			JSMN_CALLBACK(jsmn_stack_top(parser) == JSMN_KEY ?
+			JSMN_CALLBACK(jsmn_stream_stack_top(parser) == JSMN_KEY ?
 				parser->callbacks.string_callback : parser->callbacks.object_key_callback,
 				js, len - 1);
 			parser->buffer_size = 0;
@@ -123,8 +123,8 @@ static int jsmn_parse_string(jsmn_parser *parser, char cin) {
 /**
  * Parse JSON string and fill tokens.
  */
-int jsmn_parse(jsmn_parser *parser, char c) {
-	jsmntype_t type;
+int jsmn_stream_parse(jsmn_stream_parser *parser, char c) {
+	jsmn_streamtype_t type;
 	int r;
 
 	switch (parser->state) {
@@ -138,7 +138,7 @@ int jsmn_parse(jsmn_parser *parser, char c) {
 						type = JSMN_ARRAY;
 						JSMN_CALLBACK(parser->callbacks.start_array_callback);
 					}
-					if (!jsmn_stack_push(parser, type)) {
+					if (!jsmn_stream_stack_push(parser, type)) {
 						return JSMN_ERROR_MAX_DEPTH;
 					}
 					break;
@@ -148,9 +148,9 @@ int jsmn_parse(jsmn_parser *parser, char c) {
 					} else {
 						JSMN_CALLBACK(parser->callbacks.end_array_callback);
 					}
-					jsmn_stack_pop(parser);
-					if (jsmn_stack_top(parser) == JSMN_KEY) {
-						jsmn_stack_pop(parser);
+					jsmn_stream_stack_pop(parser);
+					if (jsmn_stream_stack_top(parser) == JSMN_KEY) {
+						jsmn_stream_stack_pop(parser);
 					}
 					break;
 				case '\"':
@@ -159,8 +159,8 @@ int jsmn_parse(jsmn_parser *parser, char c) {
 				case '\t' : case '\r' : case '\n' : case ' ' : case ',':
 					break;
 				case ':':
-					if (jsmn_stack_top(parser) == JSMN_OBJECT &&
-						!jsmn_stack_push(parser, JSMN_KEY)) {
+					if (jsmn_stream_stack_top(parser) == JSMN_OBJECT &&
+						!jsmn_stream_stack_push(parser, JSMN_KEY)) {
 						return JSMN_ERROR_MAX_DEPTH;
 					}
 					break;
@@ -168,11 +168,11 @@ int jsmn_parse(jsmn_parser *parser, char c) {
 				case '-': case '0': case '1' : case '2': case '3' : case '4':
 				case '5': case '6': case '7' : case '8': case '9':
 				case 't': case 'f': case 'n' :
-					if (jsmn_stack_top(parser) == JSMN_OBJECT) {
+					if (jsmn_stream_stack_top(parser) == JSMN_OBJECT) {
 						return JSMN_ERROR_INVAL;
 					}
 					parser->state = JSMN_PARSING_PRIMITIVE;
-					jsmn_parse(parser, c);
+					jsmn_stream_parse(parser, c);
 					break;
 
 				/* Unexpected char in strict mode */
@@ -182,21 +182,21 @@ int jsmn_parse(jsmn_parser *parser, char c) {
 			break;
 
 		case JSMN_PARSING_STRING:
-			r = jsmn_parse_string(parser, c);
+			r = jsmn_stream_parse_string(parser, c);
 			if (r < 0) return r;
-			if (jsmn_stack_top(parser) == JSMN_KEY) {
-				jsmn_stack_pop(parser);
+			if (jsmn_stream_stack_top(parser) == JSMN_KEY) {
+				jsmn_stream_stack_pop(parser);
 			}
 			break;
 
 		case JSMN_PARSING_PRIMITIVE:
-			r = jsmn_parse_primitive(parser, c);
+			r = jsmn_stream_parse_primitive(parser, c);
 			if (r < 0) return r;
 			else if (r == 0) {
-				if (jsmn_stack_top(parser) == JSMN_KEY) {
-					jsmn_stack_pop(parser);
+				if (jsmn_stream_stack_top(parser) == JSMN_KEY) {
+					jsmn_stream_stack_pop(parser);
 				}
-				return jsmn_parse(parser, c);
+				return jsmn_stream_parse(parser, c);
 			}
 			break;
 	}
@@ -208,7 +208,7 @@ int jsmn_parse(jsmn_parser *parser, char c) {
  * Creates a new parser based over a given  buffer with an array of tokens
  * available.
  */
-void jsmn_init(jsmn_parser *parser, jsmn_callbacks_t *callbacks) {
+void jsmn_stream_init(jsmn_stream_parser *parser, jsmn_stream_callbacks_t *callbacks) {
 	parser->state = JSMN_PARSING;
 	parser->stack_height = 0;
 	parser->buffer_size = 0;

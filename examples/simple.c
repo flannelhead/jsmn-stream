@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "jsmn.h"
+#include "../jsmn_stream.h"
 
 void start_arr(void) {
     printf("Array started\n");
@@ -25,7 +25,7 @@ void primitive(const char *value, size_t len) {
     printf("Primitive: %s\n", value);
 }
 
-jsmn_callbacks_t cbs = {
+jsmn_stream_callbacks_t cbs = {
     start_arr,
     end_arr,
     start_obj,
@@ -34,17 +34,17 @@ jsmn_callbacks_t cbs = {
     str,
     primitive
 };
-jsmn_parser parser;
+jsmn_stream_parser parser;
 
 int main(void) {
-    FILE *infile = fopen("forecast.json", "r");
+    FILE *infile = fopen("example.json", "r");
 
-    jsmn_init(&parser, &cbs);
+    jsmn_stream_init(&parser, &cbs);
 
     size_t read_count;
     int ch;
     while ((ch = fgetc(infile)) != EOF) {
-        jsmn_parse(&parser, (char)ch);
+        jsmn_stream_parse(&parser, (char)ch);
     }
 
     fclose(infile);
