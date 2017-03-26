@@ -3,25 +3,27 @@
 
 #include "../jsmn_stream.h"
 
-void start_arr(void) {
-    printf("Array started\n");
+void start_arr(void *user_arg) {
+    /* An example of using the user arg / context pointer in a callback */
+    int *parser_id = (int *)user_arg;
+    printf("Array started. Parser id = %d\n", *parser_id);
 }
-void end_arr(void) {
+void end_arr(void *user_arg) {
     printf("Array ended\n");
 }
-void start_obj(void) {
+void start_obj(void *user_arg) {
     printf("Object started\n");
 }
-void end_obj(void) {
+void end_obj(void *user_arg) {
     printf("Object ended\n");
 }
-void obj_key(const char *key, size_t key_len) {
+void obj_key(const char *key, size_t key_len, void *user_arg) {
     printf("Object key: %s\n", key);
 }
-void str(const char *value, size_t len) {
+void str(const char *value, size_t len, void *user_arg) {
     printf("String: %s\n", value);
 }
-void primitive(const char *value, size_t len) {
+void primitive(const char *value, size_t len, void *user_arg) {
     printf("Primitive: %s\n", value);
 }
 
@@ -39,7 +41,8 @@ jsmn_stream_parser parser;
 int main(void) {
     FILE *infile = fopen("example.json", "r");
 
-    jsmn_stream_init(&parser, &cbs);
+    int parser_id = 1;
+    jsmn_stream_init(&parser, &cbs, &parser_id);
 
     size_t read_count;
     int ch;
