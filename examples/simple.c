@@ -17,11 +17,11 @@ void start_obj(void *user_arg) {
 void end_obj(void *user_arg) {
     printf("Object ended\n");
 }
-void obj_key(const char *key, size_t key_len, void *user_arg) {
-    printf("Object key: %s\n", key);
+void obj_key(const char *key, size_t key_len, void *user_arg, char is_truncated) {
+    printf("%sObject key: %s\n", is_truncated == 0 ? "" : "[TRUNCATED] ", key);
 }
-void str(const char *value, size_t len, void *user_arg) {
-    printf("String: %s\n", value);
+void str(const char *value, size_t len, void *user_arg, char is_truncated) {
+    printf("%sString: %s\n", is_truncated == 0 ? "" : "[TRUNCATED] ", value);
 }
 void primitive(const char *value, size_t len, void *user_arg) {
     printf("Primitive: %s\n", value);
@@ -42,12 +42,29 @@ int main(void) {
     FILE *infile = fopen("example.json", "r");
 
     int parser_id = 1;
-    jsmn_stream_init(&parser, &cbs, &parser_id);
+    jsmn_stream_init(&parser, &cbs, &parser_id, JSMN_STREAM_TRUNCATING_ENABLE);
 
-    size_t read_count;
-    int ch;
+    int ch, ret;
     while ((ch = fgetc(infile)) != EOF) {
-        jsmn_stream_parse(&parser, (char)ch);
+        ret = jsmn_stream_parse(&parser, (char)ch);
+        if (ret != 0 && ret != JSMN_STREAM_ERROR_PART ) {
+            switch (ret)
+            {
+            case JSMN_STREAM_ERROR_INVAL:
+                printf("ERROR: JSMN_STREAM_ERROR_INVAL\n");
+                break;
+            case JSMN_STREAM_ERROR_MAX_DEPTH:
+                printf("ERROR: JSMN_STREAM_ERROR_MAX_DEPTH\n");
+                break;
+            case JSMN_STREAM_ERROR_NOMEM:
+                printf("ERROR: JSMN_STREAM_ERROR_NOMEM\n");
+                break;
+            default:
+                printf("ERROR: UNKNOWN JSMN ERROR\n");
+                break;
+            }
+            break;
+        }
     }
 
     fclose(infile);
