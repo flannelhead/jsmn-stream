@@ -69,9 +69,16 @@ found:
  */
 static int jsmn_stream_parse_string(jsmn_stream_parser *parser, char cin) {
 	/* Leave space for the terminating null character */
-	if (parser->buffer_size == JSMN_STREAM_BUFFER_SIZE - 1) {
-		return JSMN_STREAM_ERROR_NOMEM;
+	if (parser->buffer_size == JSMN_STREAM_BUFFER_SIZE - 1 ) {
+		/* If buffer is too small, enable truncated mode if available or return error */
+		if (parser->can_truncate == JSMN_STREAM_TRUNCATING_DISABLE) {
+			return JSMN_STREAM_ERROR_NOMEM;
+		}
+		parser->state = JSMN_STREAM_PARSING_STRING_TRUNCARED;
+		/* If truncated mode is enabled, character is replaced in buffer. For this, we decrement buffer pointer */
+		parser->buffer_size--;
 	}
+
 	parser->buffer[parser->buffer_size++] = cin;
 	size_t len = parser->buffer_size;
 	const char *js = parser->buffer;
@@ -83,7 +90,8 @@ static int jsmn_stream_parse_string(jsmn_stream_parser *parser, char cin) {
 			parser->buffer[len - 1] = '\0';
 			JSMN_STREAM_CALLBACK(jsmn_stream_stack_top(parser) == JSMN_STREAM_KEY ?
 				parser->callbacks.string_callback : parser->callbacks.object_key_callback,
-				js, len - 1, parser->user_arg);
+				js, len - 1, parser->user_arg, 
+				parser->state == JSMN_STREAM_PARSING_STRING_TRUNCARED ? 1 : 0 );
 			parser->buffer_size = 0;
 			parser->state = JSMN_STREAM_PARSING;
 			return 0;
@@ -186,6 +194,7 @@ int jsmn_stream_parse(jsmn_stream_parser *parser, char c) {
 			}
 			break;
 
+		case JSMN_STREAM_PARSING_STRING_TRUNCARED:
 		case JSMN_STREAM_PARSING_STRING:
 			r = jsmn_stream_parse_string(parser, c);
 			if (r < 0) return r;
@@ -214,11 +223,12 @@ int jsmn_stream_parse(jsmn_stream_parser *parser, char c) {
  * available.
  */
 void jsmn_stream_init(jsmn_stream_parser *parser,
-	jsmn_stream_callbacks_t *callbacks, void *user_arg) {
+	jsmn_stream_callbacks_t *callbacks, void *user_arg, char can_truncate) {
 	parser->state = JSMN_STREAM_PARSING;
 	parser->stack_height = 0;
 	parser->buffer_size = 0;
 	parser->callbacks = *callbacks;
 	parser->user_arg = user_arg;
+	parser->can_truncate = can_truncate;
 }
 

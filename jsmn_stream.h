@@ -12,9 +12,16 @@ extern "C" {
 #endif
 
 /* Determines the maximal nesting level of the JSON */
-#define JSMN_STREAM_MAX_DEPTH 32
+#ifndef JSMN_STREAM_MAX_DEPTH
+	#define JSMN_STREAM_MAX_DEPTH (32)
+#endif
 /* Determines the maximal length a primitive or a string can have */
-#define JSMN_STREAM_BUFFER_SIZE 512
+#ifndef JSMN_STREAM_BUFFER_SIZE
+	#define JSMN_STREAM_BUFFER_SIZE (512)
+#endif
+
+#define JSMN_STREAM_TRUNCATING_ENABLE  ((char)1)
+#define JSMN_STREAM_TRUNCATING_DISABLE ((char)0)
 
 /**
  * JSON type identifier. Basic types are:
@@ -46,7 +53,8 @@ enum jsmn_streamerr {
 typedef enum {
     JSMN_STREAM_PARSING = 0,
     JSMN_STREAM_PARSING_STRING = 1,
-    JSMN_STREAM_PARSING_PRIMITIVE = 2
+    JSMN_STREAM_PARSING_PRIMITIVE = 2,
+	JSMN_STREAM_PARSING_STRING_TRUNCARED = 3,
 } jsmn_streamstate_t;
 
 /**
@@ -57,8 +65,8 @@ typedef struct {
 	void (* end_array_callback)(void *user_arg);
 	void (* start_object_callback)(void *user_arg);
 	void (* end_object_callback)(void *user_arg);
-	void (* object_key_callback)(const char *key, size_t key_length, void *user_arg);
-	void (* string_callback)(const char *value, size_t length, void *user_arg);
+	void (* object_key_callback)(const char *key, size_t key_length, void *user_arg, char is_truncated);
+	void (* string_callback)(const char *value, size_t length, void *user_arg, char is_truncated);
 	void (* primitive_callback)(const char *value, size_t length, void *user_arg);
 } jsmn_stream_callbacks_t;
 
@@ -74,14 +82,16 @@ typedef struct {
 	char buffer[JSMN_STREAM_BUFFER_SIZE];
 	size_t buffer_size;
 	void *user_arg;
+	char can_truncate;
 } jsmn_stream_parser;
 
 /**
  * Create JSON parser given an array of event callbacks and an optional user
  * argument that is passed to the callbacks.
+ * can_truncate should be JSMN_STREAM_TRUNCATING_ENABLE or JSMN_STREAM_TRUNCATING_DISABLE
  */
 void jsmn_stream_init(jsmn_stream_parser *parser,
-	jsmn_stream_callbacks_t *callbacks, void *user_arg);
+	jsmn_stream_callbacks_t *callbacks, void *user_arg, char can_truncate);
 
 /**
  * Run JSON parser. It incrementally parses a JSON string character by
