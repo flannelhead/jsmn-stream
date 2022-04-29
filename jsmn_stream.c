@@ -17,11 +17,9 @@ static bool jsmn_stream_stack_push(jsmn_stream_parser *parser, jsmn_streamtype_t
 	return true;
 }
 
-static jsmn_streamtype_t jsmn_stream_stack_pop(jsmn_stream_parser *parser) {
-	if (parser->stack_height == 0) {
-		return JSMN_STREAM_UNDEFINED;
-	}
-	return parser->type_stack[parser->stack_height--];
+static void jsmn_stream_stack_pop(jsmn_stream_parser *parser) {
+	// We don't need to return the popped item, so just decrement height.
+	if (parser->stack_height > 0) parser->stack_height--;
 }
 
 static jsmn_streamtype_t jsmn_stream_stack_top(jsmn_stream_parser *parser) {
